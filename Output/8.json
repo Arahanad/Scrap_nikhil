@@ -1,0 +1,16 @@
+[
+    {
+        "Doctor_name": "Dr Fleming Adam James",
+        "category": "Pédiatre",
+        "Address": "Main Adress Hôpital de Montréal pour enfants Hématologie / Oncologie 2300 rue Tupper Montréal QC H3H 1P3 Canada",
+        "phone_number": "514-412-4400 #23190",
+        "Specialites": [
+            "Pédiatre",
+            "Hématologue / oncologue pédiatre"
+        ],
+        "permis": "",
+        "Statut": "",
+        "Assurance": "",
+        "Recommandations": []
+    }
+]

@@ -1,0 +1,14 @@
+{
+    "Doctor_name": "Dr Prat Xavier",
+    "category": "",
+    "Address": "Main Adress Québec",
+    "phone_number": "",
+    "Specialites": [
+        "Numéro de permis : 87065",
+        "Statut : Expiration depuis le 1989-06-30"
+    ],
+    "permis": "",
+    "Statut": "",
+    "Assurance": "",
+    "Recommandations": []
+}
