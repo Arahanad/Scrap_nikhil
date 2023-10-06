@@ -7,7 +7,7 @@ class DATABASE():
 
         self.hostaddress = 'localhost'
         self.username = 'root'
-        self.password = 'Nikhil@2526#'
+        self.password = '   '
         
         self.database = 'user'
         self.port = '3306'

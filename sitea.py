@@ -32,24 +32,32 @@ class quebecmedecin:
         return self.Specialties
     
     def get_doctor_response(self,id):
-        url=f'https://www.quebecmedecin.com/medecin/rechercher-un-medecin.htm/page:2?data%5BDoctor%5D%5Bspecialties%5D={id}&data%5BDoctor%5D%5Bcity_id%5D=&data%5BDoctor%5D%5Bnom%5D=&data%5BDoctor%5D%5Bprenom%5D=&data%5BDoctor%5D%5Bcodepostal%5D='
+        url=f'https://www.quebecmedecin.com/medecin/rechercher-un-medecin.htm/page:2?data%5BDoctor%5D%5Bspecialties%5D=&data%5BDoctor%5D%5Bcity_id%5D=&data%5BDoctor%5D%5Bnom%5D={id}&data%5BDoctor%5D%5Bprenom%5D=&data%5BDoctor%5D%5Bcodepostal%5D='
         # print(i)
         response_last=requests.get(url) 
         #time.sleep(5)
         soup=BeautifulSoup(response_last.content,"html.parser")
         page=soup.find("h1",{'class':'h4'})
         if page:
-            self.lastpage=page.text.split('/')[-1]
+            lastpage=page.text.split('/')[-1]
         else:
-            self.lastpage=1
+            lastpage=1
 
-        print("================================>","ids:",id,"pages:",self.lastpage)
-        for p in range(1,int(self.lastpage)+1):
-            response = requests.get(
-                f'https://www.quebecmedecin.com/medecin/rechercher-un-medecin.htm/page:{p}?data%5BDoctor%5D%5Bspecialties%5D={id}&data%5BDoctor%5D%5Bcity_id%5D=&data%5BDoctor%5D%5Bnom%5D=&data%5BDoctor%5D%5Bprenom%5D=&data%5BDoctor%5D%5Bcodepostal%5D=')
-            self.Doctors_links(response,id)
+        print("================================>","ids:",id,"pages:",lastpage)
+
+        ps = [i for i in range(1,int(lastpage)+1)]
+        ids = [id for i in range(1,int(lastpage)+1)]
+        # for p in range(1,int(lastpage)+1):
         
-    def Doctors_links(self,response,i):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            executor.map(self.Doctors_links, ps,
+            ids)
+        
+    def Doctors_links(self,p,id):
+        print(len(self.all_data),p,'start')
+        response = requests.get(
+            f'https://www.quebecmedecin.com/medecin/rechercher-un-medecin.htm/page:{p}?data%5BDoctor%5D%5Bspecialties%5D=&data%5BDoctor%5D%5Bcity_id%5D=&data%5BDoctor%5D%5Bnom%5D={id}&data%5BDoctor%5D%5Bprenom%5D=&data%5BDoctor%5D%5Bcodepostal%5D=')
+        # self.Doctors_links(response,id)
         soup = BeautifulSoup(response.content, 'lxml')
         divs = soup.find_all("div", {'class': 'strip_list wow fadeIn'})
         listing = []
@@ -58,13 +66,18 @@ class quebecmedecin:
             url = "https://www.quebecmedecin.com" + self.helper.get_url_from_tag(detail.find("a", {'class': 'text-dark'}))
             listing.append(url)
 
-        self.filtered_urls = [url for url in listing if url != "https://www.quebecmedecin.com"]
+        filtered_urls = [url for url in listing if url != "https://www.quebecmedecin.com"]
 
-        for link in self.filtered_urls:
-            self.Scrap_data(link)
+        iis = [ id for k in filtered_urls]
 
-    def Scrap_data(self, link):
-        data =[]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            executor.map(self.Scrap_data, filtered_urls,
+            iis)
+        
+        # for link in filtered_urls:
+        #     self.Scrap_data(link,i)
+
+    def Scrap_data(self, link,i):
         obj = {
             'link':'',
             'Doctor_name': '',
@@ -73,23 +86,36 @@ class quebecmedecin:
             'phone_number': '',
             'Specialites': [],
             'permis': '',
-            'Statut': '',
+            'Status': '',
             'Assurance': '',
-            'Recommandation' :[]
+            'Recommandation' :[],
+            'Active':'',
+            'Status_discription':''
         }
         response = requests.get(link)
         soup = BeautifulSoup(response.content, 'lxml')
         divs = soup.find('div', {'class': 'col-lg-8 col-md-9'})
+        if 'Inactive' in soup.text:
+            obj['Active'] = False
+        else:
+            obj['Active'] = True
+
         obj['link'] = link
+        print(link)
         obj['Doctor_name'] = self.helper.get_text_from_tag(divs.find('h1'))
         obj['category'] = self.helper.get_text_from_tag(divs.find('small'))
         
         ul_tag = divs.find("ul", {'class': 'contacts'})
-        obj['Address'] = self.helper.get_text_from_tag(ul_tag.find('li')).replace("Adresse principale", "Main Adress").replace("Voir sur la carte", "").replace('Main Adress','').strip()
-        obj['Address'] = re.sub(r'\s+', ' ', obj['Address']).strip()
-        
-        obj['phone_number'] = self.helper.get_text_from_tag(ul_tag.find('a', {'rel': 'nofollow'}))
-        
+        try:
+            obj['Address'] = self.helper.get_text_from_tag(ul_tag.find('li')).replace("Adresse principale", "Main Adress").replace("Voir sur la carte", "").replace('Main Adress','').strip()
+            obj['Address'] = re.sub(r'\s+', ' ', obj['Address']).strip()
+        except:
+            obj['Address'] = ''
+        try:
+
+            obj['phone_number'] = self.helper.get_text_from_tag(ul_tag.find('a', {'rel': 'nofollow'}))
+        except:
+            obj['phone_number'] = ''
         Specialites_tag = soup.find('ul', {'class': 'bullets'})
         Specialite = Specialites_tag.find_all('li')
         obj['Specialites'] = [self.helper.get_text_from_tag(spe) for spe in Specialite]
@@ -97,12 +123,15 @@ class quebecmedecin:
         div_class = soup.find_all('div', {'class': 'col-lg-12'})[-1]
         if div_class:
             permis_items = div_class.find_all('li')
-            if len(permis_items) >= 3:
-                obj['permis'] = permis_items[0].get_text().replace("Numéro de permis : ","")
-                obj['Statut'] = permis_items[1].get_text().replace("Statut :","")
-                obj['Assurance'] = permis_items[2].get_text().replace("Assurance :","")
-            else:
-                print("Not enough <li> elements found within the last 'col-lg-12' div.")
+
+            for item in permis_items:
+                if 'permis' in item.get_text():
+                    obj['permis'] = permis_items[0].get_text().replace("Numéro de permis : ","")
+                if 'Statut' in item.get_text():
+                    obj['Statut'] = permis_items[1].get_text().replace("Statut :","")
+                if 'Assurance' in item.get_text():
+                    obj['Assurance'] = permis_items[2].get_text().replace("Assurance :","")
+
         else:
             print("No 'col-lg-12' div found on the page.")
         Recommandations_tag = soup.find_all('div', {'class': 'review-box clearfix'})
@@ -124,8 +153,14 @@ class quebecmedecin:
             "Date": date,
             "Description": description
         })
-        print(json.dumps(obj, ensure_ascii=False))
+        Statut_description = soup.find('div',{'class':'alert alert-danger'})
+        if Statut_description:
+            obj['Statut_discription'] = self.helper.get_text_from_tag(Statut_description)
+        else:
+            obj['Statut_discription'] = ""
+        # print(json.dumps(obj, ensure_ascii=False))
         self.all_data.append(obj)
+        print(len(self.all_data),i,'done')
         # data.append(obj)
         # csv_file_path = "output.csv"
         # fieldnames = ["Doctor_name", "category", "Address", "phone_number", "Specialites", "permis", "Statut", "Assurance", "Name", "Date", "Recommandation"]
@@ -134,8 +169,12 @@ class quebecmedecin:
         #     writer.writerows(data)
 
     def scrapy(self):
-        ids = self.get_category()
+        # ids = self.get_category()
+        ids = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+        # ids = ['A']
         print(ids)
+        # for i in ids:
+        #     self.get_doctor_response(i)
         self.run_multiThread(
             self.get_doctor_response,
             5,
